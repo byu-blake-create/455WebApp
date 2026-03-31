@@ -54,10 +54,26 @@ npm start
 The scoring API executes this command from the project root:
 
 ```bash
-python jobs/run_inference.py
+.venv/bin/python jobs/run_inference.py
 ```
 
-Add your inference script at `jobs/run_inference.py`. It should write predictions into an `order_predictions` table keyed by `order_id`.
+This repo now includes:
+
+- `jobs/run_inference.py`
+- `jobs/models/late_delivery_model.sav`
+- `jobs/train_model_reference.py`
+
+The inference job creates or updates `order_predictions` keyed by `order_id`. It scores open orders that do not yet have a shipment row.
+
+## Python scoring setup
+
+The scoring job expects a local virtual environment at `.venv` with:
+
+```bash
+python3 -m venv .venv
+. .venv/bin/activate
+pip install -r requirements-scoring.txt
+```
 
 ## Main routes
 

@@ -1,6 +1,7 @@
 node_modules
 dist
 .vite
+.venv
 .DS_Store
 npm-debug.log*
 shop.db-shm

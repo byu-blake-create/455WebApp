@@ -28,6 +28,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const projectRoot = path.resolve(__dirname, "..");
 const scoringScriptPath = path.join(projectRoot, "jobs", "run_inference.py");
+const venvPythonPath = path.join(projectRoot, ".venv", "bin", "python");
 
 app.use(express.json());
 app.use(cookieParser());
@@ -211,7 +212,11 @@ app.post("/api/scoring/run", async (_req, res) => {
     let result;
 
     try {
-      result = await runWith("python3");
+      if (fs.existsSync(venvPythonPath)) {
+        result = await runWith(venvPythonPath);
+      } else {
+        result = await runWith("python3");
+      }
     } catch (error) {
       if (error.code === "ENOENT") {
         result = await runWith("python");

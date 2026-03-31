@@ -1,9 +1,16 @@
-Place your Python inference entrypoint at `jobs/run_inference.py`.
-
-The Next.js scoring page runs:
+The scoring page runs:
 
 ```bash
-python jobs/run_inference.py
+python3 -m venv .venv
+. .venv/bin/activate
+pip install -r requirements-scoring.txt
+.venv/bin/python jobs/run_inference.py
 ```
 
-The script is expected to write predictions into an `order_predictions` table keyed by `order_id`.
+This project includes:
+
+- `jobs/run_inference.py`: local inference job for the web app
+- `jobs/models/late_delivery_model.sav`: copied model artifact
+- `jobs/train_model_reference.py`: original training script reference
+
+The inference job writes predictions into an `order_predictions` table keyed by `order_id`.
