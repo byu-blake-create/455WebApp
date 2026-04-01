@@ -6,3 +6,4 @@ dist
 npm-debug.log*
 shop.db-shm
 shop.db-wal
+.claude/
