@@ -4,6 +4,11 @@ function isMissingRelationError(error) {
   return /does not exist|Could not find the table|relation .* does not exist/i.test(error.message);
 }
 
+function numericId(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : value;
+}
+
 function chunk(items, size) {
   const out = [];
   for (let i = 0; i < items.length; i += size) {
@@ -53,7 +58,7 @@ async function loadOrderItemAggregates(supabase, orderIds) {
     }
 
     for (const row of data || []) {
-      const oid = row.order_id;
+      const oid = numericId(row.order_id);
       const cur = map.get(oid) || {
         num_items: 0,
         num_distinct_products: new Set()
@@ -99,7 +104,7 @@ export async function runOrderScoring() {
     throw new Error(shipErr.message);
   }
 
-  const shippedIds = new Set((shipments || []).map((s) => s.order_id));
+  const shippedIds = new Set((shipments || []).map((s) => numericId(s.order_id)));
 
   const { data: orders, error: ordersErr } = await supabase
     .from("orders")
@@ -112,7 +117,7 @@ export async function runOrderScoring() {
     throw new Error(ordersErr.message);
   }
 
-  const openOrders = (orders || []).filter((o) => !shippedIds.has(o.order_id));
+  const openOrders = (orders || []).filter((o) => !shippedIds.has(numericId(o.order_id)));
 
   if (!openOrders.length) {
     return {
@@ -130,7 +135,7 @@ export async function runOrderScoring() {
 
   const predictionTimestamp = ranAt;
   const rows = openOrders.map((order) => {
-    const raw = aggMap.get(order.order_id);
+    const raw = aggMap.get(numericId(order.order_id));
     const itemAgg = raw
       ? { num_items: raw.num_items, num_distinct_products: raw.num_distinct_products.size }
       : { num_items: 0, num_distinct_products: 0 };
