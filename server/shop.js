@@ -32,6 +32,12 @@ function isMissingRelationError(error) {
   return /does not exist|Could not find the table|relation .* does not exist/i.test(error.message);
 }
 
+/** Supabase/Postgres often returns bigint ids as strings; normalize for Map/Set and .in() filters. */
+function numericId(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : value;
+}
+
 function buildFulfilledMap(shipments) {
   return new Map(shipments.map((shipment) => [shipment.order_id, true]));
 }
@@ -400,90 +406,100 @@ export async function getSchemaOverview() {
 
 export async function getPriorityQueue() {
   const supabase = getSupabaseAdmin();
-  const { data: predictions, error } = await supabase
-    .from("order_predictions")
-    .select("order_id, late_delivery_probability, predicted_late_delivery, prediction_timestamp")
-    .order("late_delivery_probability", { ascending: false })
-    .limit(500);
+  const PAGE = 200;
+  const MAX_ROWS = 50;
+  const MAX_SCAN = 20000;
+  const rows = [];
 
-  if (error) {
-    if (isMissingRelationError(error)) {
-      return {
-        status: "missing_table",
-        rows: []
-      };
-    }
+  for (let offset = 0; rows.length < MAX_ROWS && offset < MAX_SCAN; offset += PAGE) {
+    const { data: predictions, error } = await supabase
+      .from("order_predictions")
+      .select("order_id, late_delivery_probability, predicted_late_delivery, prediction_timestamp")
+      .order("late_delivery_probability", { ascending: false })
+      .range(offset, offset + PAGE - 1);
 
-    return {
-      status: "schema_mismatch",
-      rows: [],
-      missingColumns: []
-    };
-  }
-
-  const orderIds = predictions.map((row) => row.order_id);
-
-  if (!orderIds.length) {
-    return {
-      status: "ready",
-      rows: []
-    };
-  }
-
-  const [{ data: orders }, { data: shipments }] = await Promise.all([
-    expectData(
-      supabase
-        .from("orders")
-        .select("order_id, customer_id, order_datetime, order_total")
-        .in("order_id", orderIds)
-    ),
-    expectData(supabase.from("shipments").select("order_id").in("order_id", orderIds))
-  ]);
-
-  const shippedIds = new Set(shipments.map((shipment) => shipment.order_id));
-  const openOrders = orders.filter((order) => !shippedIds.has(order.order_id));
-  const customerIds = [...new Set(openOrders.map((order) => order.customer_id))];
-  const { data: customers } = customerIds.length
-    ? await expectData(
-        supabase.from("customers").select("customer_id, full_name").in("customer_id", customerIds)
-      )
-    : { data: [] };
-
-  const customerMap = new Map(customers.map((customer) => [customer.customer_id, customer.full_name]));
-  const orderMap = new Map(openOrders.map((order) => [order.order_id, order]));
-
-  const rows = predictions
-    .map((prediction) => {
-      const order = orderMap.get(prediction.order_id);
-
-      if (!order) {
-        return null;
+    if (error) {
+      if (isMissingRelationError(error)) {
+        return {
+          status: "missing_table",
+          rows: []
+        };
       }
 
       return {
+        status: "schema_mismatch",
+        rows: [],
+        missingColumns: []
+      };
+    }
+
+    if (!predictions?.length) {
+      break;
+    }
+
+    const orderIds = [...new Set(predictions.map((row) => numericId(row.order_id)))];
+
+    const [{ data: orders }, { data: shipments }] = await Promise.all([
+      expectData(
+        supabase
+          .from("orders")
+          .select("order_id, customer_id, order_datetime, order_total")
+          .in("order_id", orderIds)
+      ),
+      expectData(supabase.from("shipments").select("order_id").in("order_id", orderIds))
+    ]);
+
+    const shippedIds = new Set((shipments || []).map((shipment) => numericId(shipment.order_id)));
+    const openOrders = (orders || []).filter((order) => !shippedIds.has(numericId(order.order_id)));
+    const customerIds = [...new Set(openOrders.map((order) => numericId(order.customer_id)))];
+    const { data: customers } = customerIds.length
+      ? await expectData(
+          supabase.from("customers").select("customer_id, full_name").in("customer_id", customerIds)
+        )
+      : { data: [] };
+
+    const customerMap = new Map(
+      (customers || []).map((customer) => [numericId(customer.customer_id), customer.full_name])
+    );
+    const orderMap = new Map(openOrders.map((order) => [numericId(order.order_id), order]));
+
+    for (const prediction of predictions) {
+      if (rows.length >= MAX_ROWS) {
+        break;
+      }
+
+      const oid = numericId(prediction.order_id);
+      const order = orderMap.get(oid);
+
+      if (!order) {
+        continue;
+      }
+
+      rows.push({
         order_id: order.order_id,
         order_timestamp: order.order_datetime,
         total_value: order.order_total,
         fulfilled: 0,
         customer_id: order.customer_id,
-        customer_name: customerMap.get(order.customer_id) || `Customer ${order.customer_id}`,
+        customer_name:
+          customerMap.get(numericId(order.customer_id)) || `Customer ${order.customer_id}`,
         late_delivery_probability: prediction.late_delivery_probability,
         predicted_late_delivery: prediction.predicted_late_delivery,
         prediction_timestamp: prediction.prediction_timestamp
-      };
-    })
-    .filter(Boolean)
-    .sort((left, right) => {
-      const probabilityDelta =
-        Number(right.late_delivery_probability) - Number(left.late_delivery_probability);
+      });
+    }
+  }
 
-      if (probabilityDelta !== 0) {
-        return probabilityDelta;
-      }
+  rows.sort((left, right) => {
+    const probabilityDelta =
+      Number(right.late_delivery_probability) - Number(left.late_delivery_probability);
 
-      return new Date(left.order_timestamp).getTime() - new Date(right.order_timestamp).getTime();
-    })
-    .slice(0, 50);
+    if (probabilityDelta !== 0) {
+      return probabilityDelta;
+    }
+
+    return new Date(left.order_timestamp).getTime() - new Date(right.order_timestamp).getTime();
+  });
 
   return {
     status: "ready",
