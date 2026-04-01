@@ -881,8 +881,8 @@ function WarehousePriorityPage() {
         <div className="card">
           {data.rows.length === 0 ? (
             <div className="empty-state">
-              No unshipped scored orders are available yet. Place a new order and run the
-              scoring job after your pipeline is connected.
+              No unshipped scored orders are available yet. Place an order, run scoring, then
+              refresh this page.
             </div>
           ) : (
             <div className="table-scroll">
@@ -960,13 +960,14 @@ function ScoringPage() {
       <PageHeader
         eyebrow="Pipeline Trigger"
         title="Run Scoring"
-        copy="The deployed app does not execute Python directly. Run your external pipeline to write predictions into Supabase, then refresh the warehouse priority workflow."
+        copy="Scores every unshipped order and upserts rows into Supabase order_predictions so the warehouse queue can rank risk. Uses an in-app heuristic unless your pipeline overwrites the same table."
       />
 
       <div className="card stack-md">
         <p>
-          The web app expects your ML pipeline to write results into{" "}
-          <code>order_predictions</code> in Supabase.
+          Ensure the <code>order_predictions</code> table exists (see{" "}
+          <code>supabase/migrations/20260401120000_create_order_predictions.sql</code>
+          ). You can still replace these rows with output from your external ML job.
         </p>
 
         <div className="actions">

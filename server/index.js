@@ -16,6 +16,7 @@ import {
   searchCustomers,
   setCustomerCookie
 } from "./shop.js";
+import { runOrderScoring } from "./scoring.js";
 
 const app = express();
 const port = Number(process.env.PORT || 3000);
@@ -180,16 +181,12 @@ app.get("/api/warehouse/priority", async (_req, res, next) => {
   }
 });
 
-app.post("/api/scoring/run", async (_req, res) => {
-  res.json({
-    ok: false,
-    message:
-      "Run Scoring is not executed inside the deployed app. Run your pipeline separately and write predictions into Supabase order_predictions.",
-    ordersScored: null,
-    ranAt: new Date().toISOString(),
-    stdout: "",
-    stderr: ""
-  });
+app.post("/api/scoring/run", async (_req, res, next) => {
+  try {
+    res.json(await runOrderScoring());
+  } catch (error) {
+    next(error);
+  }
 });
 
 app.use((error, _req, res, _next) => {
