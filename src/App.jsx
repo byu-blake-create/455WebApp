@@ -67,8 +67,8 @@ function Shell() {
           <p className="eyebrow">Operational Data + Scoring</p>
           <h1>Shop ML Pipeline Demo</h1>
           <p className="subtitle">
-            Clean Vite frontend on top of a Node.js API that reads and writes directly to
-            the operational SQLite database.
+            Clean Vite frontend on top of Vercel-compatible API routes that read and write
+            to Supabase.
           </p>
         </div>
 
@@ -334,7 +334,7 @@ function DashboardPage() {
       <PageHeader
         eyebrow="Customer View"
         title="Dashboard"
-        copy="Summary data comes directly from shop.db. Fulfillment is derived from whether a shipment row exists."
+        copy="Summary data comes from Supabase. Fulfillment is derived from whether a shipment row exists."
       />
 
       <div className="stats-grid">
@@ -499,7 +499,7 @@ function PlaceOrderPage() {
       <PageHeader
         eyebrow="Customer Action"
         title="Place Order"
-        copy={`Create a new order for ${customer?.full_name}. The API writes the order and line items directly into the operational database.`}
+        copy={`Create a new order for ${customer?.full_name}. The API writes the order and line items directly into Supabase.`}
       />
 
       {error ? <ErrorCard message={error} /> : null}
@@ -960,13 +960,13 @@ function ScoringPage() {
       <PageHeader
         eyebrow="Pipeline Trigger"
         title="Run Scoring"
-        copy="This page executes python jobs/run_inference.py on the server, captures stdout and stderr, and then refreshes the warehouse priority workflow."
+        copy="The deployed app does not execute Python directly. Run your external pipeline to write predictions into Supabase, then refresh the warehouse priority workflow."
       />
 
       <div className="card stack-md">
         <p>
-          The app does not contain ML code. It only triggers an external inference job that
-          is expected to write results to <code>order_predictions</code>.
+          The web app expects your ML pipeline to write results into{" "}
+          <code>order_predictions</code> in Supabase.
         </p>
 
         <div className="actions">
@@ -1056,7 +1056,7 @@ function SchemaPage() {
       <PageHeader
         eyebrow="Developer Only"
         title="Database Schema"
-        copy="This page prints every table in shop.db and the columns returned by PRAGMA table_info."
+        copy="This page prints the tables currently reachable through the Supabase-backed API."
       />
 
       {schema.map((table) => (
